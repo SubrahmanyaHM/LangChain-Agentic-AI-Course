@@ -5,19 +5,21 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_ollama import OllamaEmbeddings, OllamaChat
+from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_chroma import Chroma
 load_dotenv()
 
 print("Initializing components...")
 
 embeddings = OllamaEmbeddings(model="embeddinggemma")
-llm = OllamaChat(model="gemma4:26b")
+llm = ChatOllama(model="gemma4:26b")
 
-vectorstore = PineconeVectorStore(
-    index_name=os.environ["INDEX_NAME"], embedding=embeddings
+vectorstore = Chroma(
+    persist_directory="./chroma_db",
+    embedding_function=embeddings,
+    collection_name="my_docs",  # must match what you created it with
 )
 
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
@@ -89,7 +91,7 @@ def create_retrieval_chain_with_lcel():
     """
     retrieval_chain = (
         RunnablePassthrough.assign(
-            context=itemgetter("question") | retriever | format_docs
+            context=itemgetter("question") | retriever | RunnableLambda(format_docs)
         )
         | prompt_template
         | llm
